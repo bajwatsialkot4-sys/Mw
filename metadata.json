@@ -1,0 +1,8 @@
+{
+  "name": "MW Cosmetics | Luxury Skincare Pakistan",
+  "description": "MW Cosmetics - Premium Pakistani luxury skincare brand. Pure glass skin face wash, oil control glow serum, glaze glow gel moisturizer. Nationwide Free COD delivery in 3-4 days.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
