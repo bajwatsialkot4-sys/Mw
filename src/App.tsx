@@ -72,28 +72,33 @@ export default function App() {
     };
   }, []);
 
-  // Listen for /admin or #admin or #contact URL route
+  // Listen for /admin URL route or hash routes
   useEffect(() => {
-    const checkHashRoute = () => {
+    const checkRoute = () => {
+      const pathname = window.location.pathname;
+      const hash = window.location.hash;
       if (
-        window.location.pathname === '/admin' || 
-        window.location.hash === '#admin' ||
-        window.location.search.includes('admin=true')
+        pathname === '/admin' || 
+        pathname === '/admin/' ||
+        hash === '#admin' ||
+        hash === '#/admin'
       ) {
         setIsAdminOpen(true);
-      } else if (
-        window.location.hash === '#contact' ||
-        window.location.hash === '#help'
-      ) {
+      } else {
+        setIsAdminOpen(false);
+      }
+
+      if (hash === '#contact' || hash === '#help') {
         setIsContactOpen(true);
       }
     };
-    checkHashRoute();
-    window.addEventListener('hashchange', checkHashRoute);
-    window.addEventListener('popstate', checkHashRoute);
+
+    checkRoute();
+    window.addEventListener('hashchange', checkRoute);
+    window.addEventListener('popstate', checkRoute);
     return () => {
-      window.removeEventListener('hashchange', checkHashRoute);
-      window.removeEventListener('popstate', checkHashRoute);
+      window.removeEventListener('hashchange', checkRoute);
+      window.removeEventListener('popstate', checkRoute);
     };
   }, []);
 
@@ -201,7 +206,6 @@ export default function App() {
         onOpenContact={() => setIsContactOpen(true)}
         onOpenPrivacy={() => setLegalModalType('privacy')}
         onOpenShipping={() => setLegalModalType('shipping')}
-        onOpenAdmin={() => setIsAdminOpen(true)}
       />
 
       {/* Main Body */}
@@ -346,7 +350,6 @@ export default function App() {
         onOpenPrivacy={() => setLegalModalType('privacy')}
         onOpenShipping={() => setLegalModalType('shipping')}
         onOpenContact={() => setIsContactOpen(true)}
-        onOpenAdmin={() => setIsAdminOpen(true)}
         onNavigateShop={() => {
           setActiveTab('shop');
           window.scrollTo({ top: 300, behavior: 'smooth' });
@@ -401,15 +404,17 @@ export default function App() {
         onClose={() => setCompletedOrder(null)}
       />
 
-      {/* Admin Panel (Dual-Auth with Google + 10-char passcode "Pak#9842@M") */}
+      {/* Admin Panel (Accessible via /admin route with 10-char passcode "Pak#9842@M") */}
       {isAdminOpen && (
         <AdminPanel
           orders={orders}
           products={products}
           onClose={() => {
             setIsAdminOpen(false);
-            if (window.location.hash === '#admin') {
-              history.pushState('', document.title, window.location.pathname);
+            if (window.location.pathname.startsWith('/admin')) {
+              window.history.pushState(null, '', '/');
+            } else if (window.location.hash === '#admin' || window.location.hash === '#/admin') {
+              window.history.pushState(null, '', window.location.pathname);
             }
           }}
         />

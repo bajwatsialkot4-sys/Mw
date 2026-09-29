@@ -3,7 +3,6 @@ import {
   Lock, 
   ShieldCheck, 
   Key, 
-  Mail, 
   LogOut, 
   Bell, 
   Volume2, 
@@ -23,19 +22,24 @@ import {
   Printer, 
   Download, 
   Eye, 
+  EyeOff,
   X,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  ArrowLeft
 } from 'lucide-react';
 import { Order, OrderStatus, Product } from '../types';
 import { BRAND_ASSETS, PAKISTAN_CITIES } from '../data/initialProducts';
 import { 
-  signInWithGoogle, 
-  signOutGoogle, 
   updateOrderStatusInDb, 
   saveProductsToDb 
 } from '../firebase';
 import { playOrderNotificationSound } from '../utils/audio';
+
+const ADMIN_PASSCODE = 
+  (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_ADMIN_PASSCODE || import.meta.env?.NEXT_PUBLIC_ADMIN_PASSCODE)) ||
+  BRAND_ASSETS.adminPasscode ||
+  'Pak#9842@M';
 
 interface AdminPanelProps {
   orders: Order[];
@@ -48,12 +52,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   products,
   onClose
 }) => {
-  // Dual Auth State
-  const [googleUser, setGoogleUser] = useState<{ email: string; displayName: string; photoURL?: string } | null>(null);
+  // Simple 10-Character Passcode Auth State with Persistent Local Session
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('mw_admin_authenticated') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [passcode, setPasscode] = useState('');
-  const [passcodeVerified, setPasscodeVerified] = useState(false);
+  const [showPasscode, setShowPasscode] = useState(false);
   const [authError, setAuthError] = useState('');
-  const [isSigningIn, setIsSigningIn] = useState(false);
 
   // Active Admin View: 'orders' | 'inventory' | 'analytics'
   const [activeTab, setActiveTab] = useState<'orders' | 'inventory'>('orders');
@@ -107,39 +116,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     prevOrdersCountRef.current = orders.length;
   }, [orders, soundEnabled]);
 
-  // Step 1: Handle Google Sign In
-  const handleGoogleAuth = async () => {
-    try {
-      setIsSigningIn(true);
-      setAuthError('');
-      const user = await signInWithGoogle();
-      setGoogleUser(user);
-    } catch (err: any) {
-      setAuthError(err.message || 'Google Authentication failed. Please retry.');
-    } finally {
-      setIsSigningIn(false);
-    }
-  };
-
-  // Step 2: Handle 10-Character Passcode Verification ("Pak#9842@M")
+  // Verify 10-Character Passcode (Default: Pak#9842@M or VITE_ADMIN_PASSCODE / NEXT_PUBLIC_ADMIN_PASSCODE)
   const handleVerifyPasscode = (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
 
-    if (passcode.trim() === BRAND_ASSETS.adminPasscode) {
-      setPasscodeVerified(true);
-      // Play brief chime upon authorized entrance
+    if (passcode.trim() === ADMIN_PASSCODE.trim()) {
+      try {
+        localStorage.setItem('mw_admin_authenticated', 'true');
+      } catch (err) {
+        console.warn('Could not save admin session to localStorage:', err);
+      }
+      setIsAuthenticated(true);
       if (soundEnabled) playOrderNotificationSound();
     } else {
-      setAuthError(`Invalid 10-character Passcode. Access Denied.`);
+      setAuthError('Invalid 10-character Passcode. Access Denied.');
     }
   };
 
-  const handleLogout = async () => {
-    await signOutGoogle();
-    setGoogleUser(null);
-    setPasscodeVerified(false);
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem('mw_admin_authenticated');
+    } catch (err) {
+      console.warn('Could not clear admin session:', err);
+    }
+    setIsAuthenticated(false);
     setPasscode('');
+    setAuthError('');
   };
 
   // Change Order Status
@@ -253,8 +256,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const deliveredCount = orders.filter(o => o.status === 'Delivered').length;
   const avgOrderValue = orders.length > 0 ? Math.round(totalRevenue / (orders.length || 1)) : 0;
 
-  // Render Gate 1 & 2: Dual Authentication Screen
-  if (!googleUser || !passcodeVerified) {
+  // Render Passcode Lock Screen if not authenticated
+  if (!isAuthenticated) {
     return (
       <div className="fixed inset-0 z-50 bg-[#1F1417]/95 backdrop-blur-md flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-[#D4AF37]/50 animate-in zoom-in-95">
@@ -263,7 +266,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close portal"
+              aria-label="Return to store"
+              title="Return to Store"
               className="absolute top-4 right-4 p-1.5 rounded-full text-[#E8C2B9] hover:text-white bg-white/10 hover:bg-white/20 transition-colors"
             >
               <X className="w-5 h-5" />
@@ -272,10 +276,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <Lock className="w-7 h-7" />
             </div>
             <h2 className="font-serif-luxury text-2xl font-bold">
-              MW Admin Terminal
+              MW Admin Access
             </h2>
             <p className="text-xs text-[#E8C2B9] mt-1 tracking-wider uppercase">
-              Dual-Authentication Security Protocol
+              10-Character Passcode Security Lock
             </p>
           </div>
 
@@ -287,86 +291,60 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
             )}
 
-            {/* Stage 1: Google Authorized Sign-In */}
-            <div className={`p-4 rounded-2xl border transition-all ${googleUser ? 'bg-[#F0FFF4] border-[#9AE6B4]' : 'bg-[#FFF8F7] border-[#F2D6D0]'}`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-[#4A2E33] flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-full bg-[#8B263E] text-white flex items-center justify-center text-[10px]">1</span>
-                  Gmail Authorized Sign-In
-                </span>
-                {googleUser && (
-                  <span className="text-xs text-[#2E7D32] font-semibold flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Verified
-                  </span>
-                )}
-              </div>
+            <p className="text-xs text-[#7A585F] text-center leading-relaxed">
+              Enter your 10-character administrative passcode to unlock real-time Pakistani orders, customer contacts, revenue analytics, and inventory management.
+            </p>
 
-              {googleUser ? (
-                <div className="flex items-center gap-2.5 pt-1">
-                  <div className="w-8 h-8 rounded-full bg-[#3B1C22] text-[#FFF3B0] font-bold flex items-center justify-center text-xs">
-                    {googleUser.displayName.charAt(0)}
-                  </div>
-                  <div className="text-xs truncate">
-                    <p className="font-bold text-[#2D1B1E] truncate">{googleUser.displayName}</p>
-                    <p className="text-[#7A585F] text-[11px] truncate">{googleUser.email}</p>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <p className="text-xs text-[#7A585F] mb-3">
-                    Authenticate your identity via Firebase Google sign-in credentials.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleGoogleAuth}
-                    disabled={isSigningIn}
-                    className="w-full py-2.5 px-4 bg-white hover:bg-gray-50 border border-[#D4AF37] rounded-xl text-xs font-bold text-[#2D1B1E] flex items-center justify-center gap-2 shadow-xs transition-all active:scale-98 cursor-pointer"
-                  >
-                    <Mail className="w-4 h-4 text-[#D4AF37]" />
-                    <span>{isSigningIn ? 'Connecting...' : 'Sign in with Google (Firebase Auth)'}</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Stage 2: 10-Character Passcode Access */}
-            <div className={`p-4 rounded-2xl border transition-all ${!googleUser ? 'opacity-40 pointer-events-none bg-gray-50 border-gray-200' : 'bg-[#FFF8F7] border-[#F2D6D0]'}`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-[#4A2E33] flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-full bg-[#8B263E] text-white flex items-center justify-center text-[10px]">2</span>
-                  10-Character Passcode Access
-                </span>
-                <span className="text-[10px] text-[#8C646B] font-mono">10 Characters</span>
-              </div>
-
-              <form onSubmit={handleVerifyPasscode} className="space-y-3">
+            <form onSubmit={handleVerifyPasscode} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[#4A2E33] uppercase tracking-wider mb-1.5">
+                  Security Passcode
+                </label>
                 <div className="relative">
-                  <Key className="absolute left-3 top-3 w-4 h-4 text-[#9A7077]" />
+                  <Key className="absolute left-3.5 top-3 w-4 h-4 text-[#9A7077]" />
                   <input
-                    type="password"
-                    placeholder="Enter security passcode"
+                    type={showPasscode ? 'text' : 'password'}
+                    placeholder="Enter 10-character passcode"
                     value={passcode}
                     onChange={(e) => setPasscode(e.target.value)}
                     maxLength={10}
-                    className="w-full pl-9 pr-4 py-2.5 bg-white border border-[#F2D6D0] rounded-xl text-xs font-mono tracking-widest text-[#2D1B1E] focus:outline-hidden focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                    autoFocus
+                    className="w-full pl-10 pr-10 py-2.5 bg-[#FFF9F8] border border-[#F2D6D0] rounded-xl text-xs sm:text-sm font-mono tracking-widest text-[#2D1B1E] focus:bg-white focus:outline-hidden focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20 transition-all"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasscode(!showPasscode)}
+                    aria-label={showPasscode ? 'Hide passcode' : 'Show passcode'}
+                    className="absolute right-3 top-3 text-[#9A7077] hover:text-[#2D1B1E] transition-colors"
+                  >
+                    {showPasscode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] text-[#8C646B] px-1">
-                  <span>Passcode: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[#8B263E] font-bold">Pak#9842@M</code></span>
-                  <span>{passcode.length}/10</span>
+                <div className="flex items-center justify-between text-[11px] text-[#8C646B] mt-2 px-1">
+                  <span>Passcode: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[#8B263E] font-bold font-mono">Pak#9842@M</code></span>
+                  <span className="font-mono">{passcode.length}/10</span>
                 </div>
+              </div>
 
-                <button
-                  type="submit"
-                  disabled={!googleUser || passcode.length === 0}
-                  className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#8B263E] to-[#591424] hover:from-[#A02C48] hover:to-[#6E192D] transition-all flex items-center justify-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  <ShieldCheck className="w-4 h-4 text-[#FFF3B0]" />
-                  <span>Verify Passcode & Enter Admin Panel</span>
-                </button>
-              </form>
-            </div>
+              <button
+                type="submit"
+                disabled={passcode.length === 0}
+                className="w-full py-3 px-4 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#8B263E] to-[#591424] hover:from-[#A02C48] hover:to-[#6E192D] transition-all flex items-center justify-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <ShieldCheck className="w-4 h-4 text-[#FFF3B0]" />
+                <span>Verify Passcode & Enter Admin Panel</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-[#7A585F] hover:text-[#2D1B1E] hover:bg-gray-100 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Return to Store</span>
+              </button>
+            </form>
           </div>
         </div>
       </div>
@@ -389,7 +367,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <h1 className="font-serif-luxury text-base sm:text-lg font-bold flex items-center gap-2">
                 <span>MW Cosmetics</span>
                 <span className="text-[10px] uppercase font-mono tracking-widest bg-[#D4AF37] text-[#2D161A] font-bold px-2 py-0.5 rounded-full">
-                  Admin v2.4
+                  Admin Terminal
                 </span>
               </h1>
               <p className="text-[10px] text-[#E8C2B9] hidden sm:block">
@@ -414,11 +392,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <span className="hidden md:inline">{soundEnabled ? 'Audio Chime ON' : 'Audio Muted'}</span>
             </button>
 
-            {/* User Profile */}
-            <div className="hidden lg:flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
+            {/* Authenticated Admin Badge */}
+            <div className="hidden sm:flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="truncate max-w-[140px] text-[#FFF3B0] font-medium">
-                {googleUser.displayName}
+              <span className="text-[#FFF3B0] font-medium text-xs">
+                Admin Session Active
               </span>
             </div>
 
@@ -426,18 +404,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <button
               type="button"
               onClick={handleLogout}
+              title="Lock Admin Panel"
               className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-red-900/40 hover:bg-red-900/70 text-red-200 border border-red-700/50 flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
               <span className="hidden sm:inline">Logout</span>
             </button>
 
-            {/* Close Admin View */}
+            {/* Close Admin View & Return to Store */}
             <button
               type="button"
               onClick={onClose}
               aria-label="Exit admin view"
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+              title="Return to Store"
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>

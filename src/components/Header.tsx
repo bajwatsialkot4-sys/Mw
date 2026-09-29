@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, ShoppingBag, Menu, X, Shield, Phone, Sparkles } from 'lucide-react';
+import { Search, ShoppingBag, Menu, X, Phone, Sparkles } from 'lucide-react';
 import { BRAND_ASSETS } from '../data/initialProducts';
 
 interface HeaderProps {
@@ -13,7 +13,6 @@ interface HeaderProps {
   onOpenContact: () => void;
   onOpenPrivacy: () => void;
   onOpenShipping: () => void;
-  onOpenAdmin: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -26,8 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
   setActiveTab,
   onOpenContact,
   onOpenPrivacy,
-  onOpenShipping,
-  onOpenAdmin
+  onOpenShipping
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
@@ -234,22 +232,11 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </div>
 
-          <div className="pt-2 border-t border-[#F2D6D0]/60 flex items-center justify-between text-xs text-[#8C646B]">
+          <div className="pt-2 border-t border-[#F2D6D0]/60 flex items-center justify-center text-xs text-[#8C646B]">
             <span className="flex items-center gap-1">
               <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
-              Official MW Brand Store
+              Official MW Brand Store • Pakistan
             </span>
-            <button
-              type="button"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                onOpenAdmin();
-              }}
-              className="flex items-center gap-1 text-[#8C646B] hover:text-[#2D1B1E]"
-            >
-              <Shield className="w-3 h-3 text-[#D4AF37]" />
-              Admin Portal
-            </button>
           </div>
         </div>
       )}

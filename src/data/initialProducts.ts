@@ -104,7 +104,7 @@ export const PAKISTAN_CITIES = [
 export const BRAND_ASSETS = {
   logo: 'https://res.cloudinary.com/dsaydvr5t/image/upload/v1789710759/7ccdb8ab-fbb8-41b9-989a-65765a7b1486_fel2pj.jpg',
   brandName: 'MW Cosmetics',
-  adminPasscode: 'Pak#9842@M',
+  adminPasscode: (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_ADMIN_PASSCODE || import.meta.env?.NEXT_PUBLIC_ADMIN_PASSCODE)) || 'Pak#9842@M',
   deliveryBanner: 'Free Shipping Across Pakistan | Delivery within 3 to 4 Business Days | Cash on Delivery (COD)',
   supportPhone: '+92 328 8608585',
   supportPhoneDisplay: '03288608585 (+92 328 8608585)',

@@ -1,12 +1,11 @@
 import React from 'react';
-import { Lock, Sparkles, ShieldCheck, Truck, Phone, Mail, Heart, MessageSquare } from 'lucide-react';
+import { Sparkles, ShieldCheck, Truck, Phone, Mail, Heart, MessageSquare } from 'lucide-react';
 import { BRAND_ASSETS } from '../data/initialProducts';
 
 interface FooterProps {
   onOpenPrivacy: () => void;
   onOpenShipping: () => void;
   onOpenContact: () => void;
-  onOpenAdmin: () => void;
   onNavigateShop: () => void;
 }
 
@@ -14,7 +13,6 @@ export const Footer: React.FC<FooterProps> = ({
   onOpenPrivacy,
   onOpenShipping,
   onOpenContact,
-  onOpenAdmin,
   onNavigateShop
 }) => {
   return (
@@ -185,7 +183,7 @@ export const Footer: React.FC<FooterProps> = ({
           </div>
         </div>
 
-        {/* Bottom Bar with Discrete Lock Icon for Admin Access */}
+        {/* Bottom Bar */}
         <div className="pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-[#A8888E]">
           <p>© {new Date().getFullYear()} MW Cosmetics Pakistan. All rights reserved. Crafted for porcelain radiance.</p>
 
@@ -193,17 +191,6 @@ export const Footer: React.FC<FooterProps> = ({
             <span className="flex items-center gap-1 text-[#E8C2B9]">
               Handcrafted with <Heart className="w-3 h-3 text-[#D4AF37] fill-[#D4AF37]" /> in Pakistan
             </span>
-
-            {/* Discreet Admin Lock Icon */}
-            <button
-              type="button"
-              onClick={onOpenAdmin}
-              aria-label="Admin Portal"
-              title="Secure Admin Portal"
-              className="p-1.5 text-white/30 hover:text-[#D4AF37] rounded-full hover:bg-white/5 transition-all"
-            >
-              <Lock className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
       </div>
