@@ -95,24 +95,24 @@ const getRawFirebaseJson = (): Partial<Record<string, string>> => {
 
 const jsonConfig = getRawFirebaseJson();
 
-// Resolve individual credentials with cross-platform fallback
+// Resolve individual credentials with cross-platform fallback and verified mwcosmetics project defaults
 const rawApiKey = jsonConfig.apiKey || readEnv(
   'VITE_FIREBASE_API_KEY',
   'NEXT_PUBLIC_FIREBASE_API_KEY',
   'FIREBASE_API_KEY'
-);
+) || 'AIzaSyDSJsxLIsc-97XdztSnNq1XWr5ne3vQpAw';
 
 const rawProjectId = jsonConfig.projectId || readEnv(
   'VITE_FIREBASE_PROJECT_ID',
   'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
   'FIREBASE_PROJECT_ID'
-);
+) || 'mwcosmetics';
 
 let rawAuthDomain = jsonConfig.authDomain || readEnv(
   'VITE_FIREBASE_AUTH_DOMAIN',
   'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
   'FIREBASE_AUTH_DOMAIN'
-) || (rawProjectId ? `${rawProjectId}.firebaseapp.com` : '');
+) || `${rawProjectId}.firebaseapp.com`;
 
 // Normalize .firebase.com to standard .firebaseapp.com if provided
 if (rawAuthDomain && rawAuthDomain.endsWith('.firebase.com')) {
@@ -123,19 +123,19 @@ const rawStorageBucket = jsonConfig.storageBucket || readEnv(
   'VITE_FIREBASE_STORAGE_BUCKET',
   'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
   'FIREBASE_STORAGE_BUCKET'
-) || (rawProjectId ? `${rawProjectId}.firebasestorage.app` : '');
+) || `${rawProjectId}.firebasestorage.app`;
 
 const rawMessagingSenderId = jsonConfig.messagingSenderId || readEnv(
   'VITE_FIREBASE_MESSAGING_SENDER_ID',
   'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
   'FIREBASE_MESSAGING_SENDER_ID'
-);
+) || '85129831851';
 
 const rawAppId = jsonConfig.appId || readEnv(
   'VITE_FIREBASE_APP_ID',
   'NEXT_PUBLIC_FIREBASE_APP_ID',
   'FIREBASE_APP_ID'
-);
+) || '1:85129831851:web:8fa1148d3eb7221243deee';
 
 /**
  * PRODUCTION FIREBASE CONFIGURATION
