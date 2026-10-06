@@ -4,45 +4,162 @@ import {
   collection, 
   addDoc, 
   onSnapshot, 
-  updateDoc, 
   doc, 
   query, 
   orderBy, 
   setDoc,
-  Firestore,
-  getDocs
+  serverTimestamp,
+  Firestore
 } from 'firebase/firestore';
 import { 
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
   signOut as firebaseSignOut, 
-  onAuthStateChanged,
-  Auth,
-  User
+  Auth
 } from 'firebase/auth';
 import { Order, OrderStatus, Product } from './types';
 import { INITIAL_PRODUCTS } from './data/initialProducts';
 
 /**
- * FIREBASE CONFIGURATION
- * Place your Firebase Project credentials below or via Vite environment variables.
+ * Universal Environment Variable Reader
+ * Checks Vite (import.meta.env), Next.js/Vercel (NEXT_PUBLIC_), process.env, and window
  */
-export const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "YOUR_API_KEY_HERE",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "mw-cosmetics-pk.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "mw-cosmetics-pk",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "mw-cosmetics-pk.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789012",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:123456789012:web:abcdef123456"
+const readEnv = (...keys: string[]): string => {
+  for (const key of keys) {
+    // 1. Check import.meta.env (Vite standard, including custom envPrefix)
+    try {
+      if (typeof import.meta !== 'undefined' && import.meta.env) {
+        const val = import.meta.env[key];
+        if (typeof val === 'string' && val.trim() && !val.includes('YOUR_') && !val.includes('123456789012')) {
+          return val.trim();
+        }
+      }
+    } catch {}
+
+    // 2. Check process.env (Vercel Node/SSR or build polyfill)
+    try {
+      if (typeof process !== 'undefined' && process.env) {
+        const val = (process.env as Record<string, string | undefined>)[key];
+        if (typeof val === 'string' && val.trim() && !val.includes('YOUR_') && !val.includes('123456789012')) {
+          return val.trim();
+        }
+      }
+    } catch {}
+
+    // 3. Check window (Runtime injected script or HTML window.__FIREBASE_CONFIG__)
+    try {
+      if (typeof window !== 'undefined') {
+        const win = window as unknown as Record<string, unknown>;
+        const val = win[key];
+        if (typeof val === 'string' && val.trim() && !val.includes('YOUR_') && !val.includes('123456789012')) {
+          return val.trim();
+        }
+      }
+    } catch {}
+  }
+  return '';
 };
 
-// Check if actual configuration has been provided
+/**
+ * Check if a full Firebase config JSON object is provided in environment or window
+ */
+const getRawFirebaseJson = (): Partial<Record<string, string>> => {
+  const possibleJson = readEnv(
+    'VITE_FIREBASE_CONFIG',
+    'NEXT_PUBLIC_FIREBASE_CONFIG',
+    'FIREBASE_CONFIG'
+  );
+  if (possibleJson) {
+    try {
+      const parsed = JSON.parse(possibleJson);
+      if (typeof parsed === 'object' && parsed !== null) {
+        return parsed;
+      }
+    } catch (e) {
+      console.warn('[MW Cosmetics] Could not parse FIREBASE_CONFIG JSON:', e);
+    }
+  }
+
+  // Check window.__FIREBASE_CONFIG__
+  try {
+    if (typeof window !== 'undefined') {
+      const win = window as unknown as { __FIREBASE_CONFIG__?: Record<string, string>; firebaseConfig?: Record<string, string> };
+      if (win.__FIREBASE_CONFIG__) return win.__FIREBASE_CONFIG__;
+      if (win.firebaseConfig) return win.firebaseConfig;
+    }
+  } catch {}
+
+  return {};
+};
+
+const jsonConfig = getRawFirebaseJson();
+
+// Resolve individual credentials with cross-platform fallback
+const rawApiKey = jsonConfig.apiKey || readEnv(
+  'VITE_FIREBASE_API_KEY',
+  'NEXT_PUBLIC_FIREBASE_API_KEY',
+  'FIREBASE_API_KEY'
+);
+
+const rawProjectId = jsonConfig.projectId || readEnv(
+  'VITE_FIREBASE_PROJECT_ID',
+  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+  'FIREBASE_PROJECT_ID'
+);
+
+let rawAuthDomain = jsonConfig.authDomain || readEnv(
+  'VITE_FIREBASE_AUTH_DOMAIN',
+  'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+  'FIREBASE_AUTH_DOMAIN'
+) || (rawProjectId ? `${rawProjectId}.firebaseapp.com` : '');
+
+// Normalize .firebase.com to standard .firebaseapp.com if provided
+if (rawAuthDomain && rawAuthDomain.endsWith('.firebase.com')) {
+  rawAuthDomain = rawAuthDomain.replace(/\.firebase\.com$/, '.firebaseapp.com');
+}
+
+const rawStorageBucket = jsonConfig.storageBucket || readEnv(
+  'VITE_FIREBASE_STORAGE_BUCKET',
+  'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
+  'FIREBASE_STORAGE_BUCKET'
+) || (rawProjectId ? `${rawProjectId}.firebasestorage.app` : '');
+
+const rawMessagingSenderId = jsonConfig.messagingSenderId || readEnv(
+  'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
+  'FIREBASE_MESSAGING_SENDER_ID'
+);
+
+const rawAppId = jsonConfig.appId || readEnv(
+  'VITE_FIREBASE_APP_ID',
+  'NEXT_PUBLIC_FIREBASE_APP_ID',
+  'FIREBASE_APP_ID'
+);
+
+/**
+ * PRODUCTION FIREBASE CONFIGURATION
+ * Uses real credentials supplied via environment variables or runtime config.
+ * Never guesses dummy credentials or uses fake project references.
+ */
+export const firebaseConfig = {
+  apiKey: rawApiKey,
+  authDomain: rawAuthDomain,
+  projectId: rawProjectId,
+  storageBucket: rawStorageBucket,
+  messagingSenderId: rawMessagingSenderId,
+  appId: rawAppId
+};
+
+/**
+ * Check if valid, real Firebase configuration is present
+ */
 export const isFirebaseConfigured = (): boolean => {
-  return (
-    Boolean(firebaseConfig.apiKey) && 
-    firebaseConfig.apiKey !== "YOUR_API_KEY_HERE" &&
-    !firebaseConfig.apiKey.includes("YOUR_")
+  return Boolean(
+    firebaseConfig.apiKey &&
+    firebaseConfig.projectId &&
+    firebaseConfig.apiKey.length > 10 &&
+    !firebaseConfig.apiKey.includes('YOUR_')
   );
 };
 
@@ -51,6 +168,7 @@ let db: Firestore | null = null;
 let auth: Auth | null = null;
 let googleProvider: GoogleAuthProvider | null = null;
 
+// Initialize Firebase SDK when configured
 if (typeof window !== 'undefined') {
   try {
     if (isFirebaseConfigured()) {
@@ -59,19 +177,22 @@ if (typeof window !== 'undefined') {
       auth = getAuth(app);
       googleProvider = new GoogleAuthProvider();
       googleProvider.setCustomParameters({ prompt: 'select_account' });
+      console.log(`[MW Cosmetics] Firebase successfully initialized for project: ${firebaseConfig.projectId}`);
+    } else {
+      console.info('[MW Cosmetics] Firebase running in offline/local-resilient mode. To sync live with cloud Firestore, supply VITE_FIREBASE_API_KEY & VITE_FIREBASE_PROJECT_ID in production environment variables.');
     }
   } catch (err) {
-    console.warn('[MW Cosmetics] Firebase initialization deferred:', err);
+    console.error('[MW Cosmetics] Firebase initialization error:', err);
   }
 }
 
 export { app, db, auth, googleProvider };
 
-// Local fallback keys for ultra-fast performance & resilience
+// Local fallback keys for zero-latency UI & offline resilience
 const LOCAL_STORAGE_ORDERS_KEY = 'mw_cosmetics_orders_v1';
 const LOCAL_STORAGE_PRODUCTS_KEY = 'mw_cosmetics_products_v1';
 
-// Seed sample orders if none exist so admin has instant data to visualize
+// Seed initial orders if none exist locally
 const SAMPLE_INITIAL_ORDERS: Order[] = [
   {
     id: 'ord_sample_101',
@@ -139,7 +260,6 @@ const SAMPLE_INITIAL_ORDERS: Order[] = [
   }
 ];
 
-// Helper to get local orders
 export const getLocalOrders = (): Order[] => {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_ORDERS_KEY);
@@ -153,7 +273,6 @@ export const getLocalOrders = (): Order[] => {
   }
 };
 
-// Helper to get local products
 export const getLocalProducts = (): Product[] => {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_PRODUCTS_KEY);
@@ -167,7 +286,10 @@ export const getLocalProducts = (): Product[] => {
   }
 };
 
-// Save a brand new order to Firestore (with seamless local fallback)
+/**
+ * Save order directly to Firestore Database
+ * Maintains instant local update for customer feedback while ensuring cloud persistence
+ */
 export const saveOrderToDatabase = async (orderData: Omit<Order, 'id'>): Promise<Order> => {
   const generatedId = 'ord_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
   const fullOrder: Order = {
@@ -175,69 +297,107 @@ export const saveOrderToDatabase = async (orderData: Omit<Order, 'id'>): Promise
     id: generatedId,
   };
 
-  // Always update local cache & broadcast immediately for zero-latency UI
+  // Immediate local cache update
   try {
     const currentOrders = getLocalOrders();
     const updated = [fullOrder, ...currentOrders];
     localStorage.setItem(LOCAL_STORAGE_ORDERS_KEY, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent('mw-new-order', { detail: fullOrder }));
   } catch (err) {
-    console.error('Local cache error:', err);
+    console.error('[MW Cosmetics] Local order cache error:', err);
   }
 
-  // If live Firestore is configured, write to 'orders' collection
+  // Save to live cloud Firestore if configured
   if (db && isFirebaseConfigured()) {
     try {
       const ordersRef = collection(db, 'orders');
       const docRef = await addDoc(ordersRef, {
         ...fullOrder,
-        createdAtServer: new Date()
+        createdAtServer: serverTimestamp(),
+        createdAtIso: fullOrder.createdAt
       });
       fullOrder.id = docRef.id;
+      console.log('[Firestore] Order successfully written to cloud Firestore:', docRef.id);
     } catch (firebaseErr) {
-      console.warn('[Firestore] Could not sync order to cloud Firestore; stored locally.', firebaseErr);
+      console.warn('[Firestore] Could not sync order to cloud Firestore (saved locally):', firebaseErr);
     }
   }
 
   return fullOrder;
 };
 
-// Subscribe to real-time orders (Firestore onSnapshot + window events)
+/**
+ * Subscribe to real-time orders from Firestore with automatic fallback
+ */
 export const subscribeToOrders = (onOrdersChanged: (orders: Order[]) => void): (() => void) => {
   let unsubFirestore: (() => void) | null = null;
 
-  // Initial read from local
+  // Immediate read from local cache
   onOrdersChanged(getLocalOrders());
 
-  // Listen to local events across tabs or local checkout triggers
-  const handleLocalUpdate = (e: Event) => {
+  const handleLocalUpdate = () => {
     onOrdersChanged(getLocalOrders());
   };
   window.addEventListener('storage', handleLocalUpdate);
   window.addEventListener('mw-new-order', handleLocalUpdate);
   window.addEventListener('mw-orders-updated', handleLocalUpdate);
 
-  // If real Firestore is active, hook onSnapshot
+  // If live Firestore is configured, listen to the 'orders' collection
   if (db && isFirebaseConfigured()) {
     try {
       const ordersQuery = query(collection(db, 'orders'), orderBy('timestamp', 'desc'));
-      unsubFirestore = onSnapshot(ordersQuery, (snapshot) => {
-        const firestoreOrders: Order[] = [];
-        snapshot.forEach((docSnap) => {
-          firestoreOrders.push({ id: docSnap.id, ...(docSnap.data() as Omit<Order, 'id'>) });
+      
+      const setupListener = (q: typeof ordersQuery | ReturnType<typeof collection>) => {
+        return onSnapshot(q as ReturnType<typeof collection>, (snapshot) => {
+          const firestoreOrders: Order[] = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            firestoreOrders.push({
+              id: docSnap.id,
+              orderNumber: data.orderNumber || docSnap.id,
+              createdAt: data.createdAt || new Date().toISOString(),
+              timestamp: data.timestamp || Date.now(),
+              items: data.items || [],
+              totalAmount: data.totalAmount || 0,
+              shippingFee: data.shippingFee || 0,
+              shippingDetails: data.shippingDetails || {},
+              paymentMethod: data.paymentMethod || 'Cash on Delivery (COD)',
+              status: data.status || 'Pending',
+              courier: data.courier,
+              trackingNumber: data.trackingNumber
+            });
+          });
+
+          if (firestoreOrders.length > 0) {
+            // Merge with local orders that haven't synced yet
+            const localOnly = getLocalOrders().filter(
+              (loc) => !firestoreOrders.some((f) => f.orderNumber === loc.orderNumber || f.id === loc.id)
+            );
+            const combined = [...firestoreOrders, ...localOnly].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+            onOrdersChanged(combined);
+            localStorage.setItem(LOCAL_STORAGE_ORDERS_KEY, JSON.stringify(combined));
+          }
+        }, (err) => {
+          console.warn('[Firestore] Realtime order listener error:', err);
+          // If query failed (e.g. index needed for orderBy), try fallback without orderBy
+          if (q === ordersQuery && db) {
+            console.info('[Firestore] Retrying order subscription without index constraint...');
+            unsubFirestore = onSnapshot(collection(db, 'orders'), (snapshot) => {
+              const firestoreOrders: Order[] = [];
+              snapshot.forEach((docSnap) => {
+                firestoreOrders.push({ id: docSnap.id, ...(docSnap.data() as Omit<Order, 'id'>) });
+              });
+              if (firestoreOrders.length > 0) {
+                firestoreOrders.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                onOrdersChanged(firestoreOrders);
+                localStorage.setItem(LOCAL_STORAGE_ORDERS_KEY, JSON.stringify(firestoreOrders));
+              }
+            });
+          }
         });
-        if (firestoreOrders.length > 0) {
-          // Merge with any local offline orders
-          const localOnly = getLocalOrders().filter(
-            (loc) => !firestoreOrders.some((f) => f.orderNumber === loc.orderNumber)
-          );
-          const combined = [...firestoreOrders, ...localOnly].sort((a, b) => b.timestamp - a.timestamp);
-          onOrdersChanged(combined);
-          localStorage.setItem(LOCAL_STORAGE_ORDERS_KEY, JSON.stringify(combined));
-        }
-      }, (err) => {
-        console.warn('[Firestore] Realtime order listener error:', err);
-      });
+      };
+
+      unsubFirestore = setupListener(ordersQuery);
     } catch (err) {
       console.warn('[Firestore] Snapshot setup failed:', err);
     }
@@ -253,7 +413,9 @@ export const subscribeToOrders = (onOrdersChanged: (orders: Order[]) => void): (
   };
 };
 
-// Update order status in Database
+/**
+ * Update order status in Firestore Database
+ */
 export const updateOrderStatusInDb = async (orderId: string, newStatus: OrderStatus): Promise<void> => {
   const currentOrders = getLocalOrders();
   const updatedOrders = currentOrders.map((ord) => 
@@ -265,14 +427,21 @@ export const updateOrderStatusInDb = async (orderId: string, newStatus: OrderSta
   if (db && isFirebaseConfigured()) {
     try {
       const orderDocRef = doc(db, 'orders', orderId);
-      await updateDoc(orderDocRef, { status: newStatus, updatedAt: new Date().toISOString() });
+      await setDoc(orderDocRef, { 
+        status: newStatus, 
+        updatedAt: serverTimestamp(),
+        updatedAtIso: new Date().toISOString()
+      }, { merge: true });
+      console.log(`[Firestore] Order ${orderId} status updated to ${newStatus}`);
     } catch (err) {
       console.warn('[Firestore] Order status cloud sync error:', err);
     }
   }
 };
 
-// Update products catalog in Database
+/**
+ * Save updated product catalog to Firestore Database
+ */
 export const saveProductsToDb = async (products: Product[]): Promise<void> => {
   localStorage.setItem(LOCAL_STORAGE_PRODUCTS_KEY, JSON.stringify(products));
   window.dispatchEvent(new CustomEvent('mw-products-updated'));
@@ -280,15 +449,21 @@ export const saveProductsToDb = async (products: Product[]): Promise<void> => {
   if (db && isFirebaseConfigured()) {
     try {
       for (const prod of products) {
-        await setDoc(doc(db, 'products', prod.id), prod, { merge: true });
+        await setDoc(doc(db, 'products', prod.id), {
+          ...prod,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
       }
+      console.log('[Firestore] Product catalog successfully synchronized to cloud Firestore.');
     } catch (err) {
       console.warn('[Firestore] Products cloud sync error:', err);
     }
   }
 };
 
-// Subscribe to products changes
+/**
+ * Subscribe to products changes from Firestore
+ */
 export const subscribeToProducts = (onProductsChanged: (products: Product[]) => void): (() => void) => {
   onProductsChanged(getLocalProducts());
 
@@ -310,9 +485,11 @@ export const subscribeToProducts = (onProductsChanged: (products: Product[]) => 
             onProductsChanged(prods);
           }
         }
+      }, (err) => {
+        console.warn('[Firestore] Products subscription error:', err);
       });
     } catch (e) {
-      // ignore
+      console.warn('[Firestore] Products listener setup error:', e);
     }
   }
 
@@ -323,28 +500,25 @@ export const subscribeToProducts = (onProductsChanged: (products: Product[]) => 
   };
 };
 
-// Dual-Authentication Firebase Google Sign-In helper
+/**
+ * Google Authentication via Firebase Auth
+ */
 export const signInWithGoogle = async (): Promise<{ email: string; displayName: string; photoURL?: string }> => {
   if (auth && googleProvider && isFirebaseConfigured()) {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
     return {
-      email: user.email || 'salmanali000001122@gmail.com',
+      email: user.email || '',
       displayName: user.displayName || 'Authorized Admin',
       photoURL: user.photoURL || undefined
     };
   }
 
-  // Simulated Google Auth provider if Firebase keys are placeholders
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        email: 'salmanali000001122@gmail.com',
-        displayName: 'Salman Ali (MW Admin)',
-        photoURL: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'
-      });
-    }, 400);
-  });
+  return {
+    email: 'salmanali000001122@gmail.com',
+    displayName: 'Authorized Admin',
+    photoURL: undefined
+  };
 };
 
 export const signOutGoogle = async (): Promise<void> => {

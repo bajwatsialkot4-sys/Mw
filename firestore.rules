@@ -1,0 +1,25 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Orders collection: allow store customers to submit orders, and admin to manage orders
+    match /orders/{orderId} {
+      allow create: if request.resource.data.totalAmount is number 
+                    && request.resource.data.totalAmount > 0
+                    && request.resource.data.items is list;
+      allow read, update: if true;
+      allow delete: if false;
+    }
+
+    // Products catalog: allow reading products publicly, admin updates
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Default deny all other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

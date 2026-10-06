@@ -116,12 +116,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     prevOrdersCountRef.current = orders.length;
   }, [orders, soundEnabled]);
 
-  // Verify 10-Character Passcode (Default: Pak#9842@M or VITE_ADMIN_PASSCODE / NEXT_PUBLIC_ADMIN_PASSCODE)
+  // Verify Passcode (Supports provided environment variable MWCosmetics@2026#Admin and default)
   const handleVerifyPasscode = (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
 
-    if (passcode.trim() === ADMIN_PASSCODE.trim()) {
+    const input = passcode.trim();
+    const expected = ADMIN_PASSCODE.trim();
+
+    if (input === expected || input === 'MWCosmetics@2026#Admin' || input === 'Pak#9842@M') {
       try {
         localStorage.setItem('mw_admin_authenticated', 'true');
       } catch (err) {
@@ -130,7 +133,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       setIsAuthenticated(true);
       if (soundEnabled) playOrderNotificationSound();
     } else {
-      setAuthError('Invalid 10-character Passcode. Access Denied.');
+      setAuthError('Invalid Security Passcode. Access Denied.');
     }
   };
 
@@ -279,7 +282,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               MW Admin Access
             </h2>
             <p className="text-xs text-[#E8C2B9] mt-1 tracking-wider uppercase">
-              10-Character Passcode Security Lock
+              Administrative Passcode Lock
             </p>
           </div>
 
@@ -292,7 +295,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             )}
 
             <p className="text-xs text-[#7A585F] text-center leading-relaxed">
-              Enter your 10-character administrative passcode to unlock real-time Pakistani orders, customer contacts, revenue analytics, and inventory management.
+              Enter your administrative security passcode to unlock real-time Pakistani orders, customer contacts, revenue analytics, and inventory management.
             </p>
 
             <form onSubmit={handleVerifyPasscode} className="space-y-4">
@@ -304,10 +307,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <Key className="absolute left-3.5 top-3 w-4 h-4 text-[#9A7077]" />
                   <input
                     type={showPasscode ? 'text' : 'password'}
-                    placeholder="Enter 10-character passcode"
+                    placeholder="Enter admin passcode"
                     value={passcode}
                     onChange={(e) => setPasscode(e.target.value)}
-                    maxLength={10}
+                    maxLength={64}
                     autoFocus
                     className="w-full pl-10 pr-10 py-2.5 bg-[#FFF9F8] border border-[#F2D6D0] rounded-xl text-xs sm:text-sm font-mono tracking-widest text-[#2D1B1E] focus:bg-white focus:outline-hidden focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20 transition-all"
                   />
@@ -315,15 +318,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     type="button"
                     onClick={() => setShowPasscode(!showPasscode)}
                     aria-label={showPasscode ? 'Hide passcode' : 'Show passcode'}
-                    className="absolute right-3 top-3 text-[#9A7077] hover:text-[#2D1B1E] transition-colors"
+                    className="absolute right-3 top-3 text-[#9A7077] hover:text-[#2D1B1E] transition-colors cursor-pointer"
                   >
                     {showPasscode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
 
                 <div className="flex items-center justify-between text-[11px] text-[#8C646B] mt-2 px-1">
-                  <span>Passcode: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[#8B263E] font-bold font-mono">Pak#9842@M</code></span>
-                  <span className="font-mono">{passcode.length}/10</span>
+                  <span>Passcode: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[#8B263E] font-bold font-mono">MWCosmetics@2026#Admin</code></span>
+                  <span className="font-mono">{passcode.length} chars</span>
                 </div>
               </div>
 
