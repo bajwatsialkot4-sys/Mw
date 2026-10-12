@@ -26,7 +26,14 @@ import {
   X,
   Sparkles,
   ExternalLink,
-  ArrowLeft
+  ArrowLeft,
+  Phone,
+  MapPin,
+  User,
+  FileText,
+  Check,
+  MessageSquare,
+  Copy
 } from 'lucide-react';
 import { Order, OrderStatus, Product } from '../types';
 import { BRAND_ASSETS, PAKISTAN_CITIES } from '../data/initialProducts';
@@ -40,6 +47,14 @@ const ADMIN_PASSCODE =
   (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_ADMIN_PASSCODE || import.meta.env?.NEXT_PUBLIC_ADMIN_PASSCODE)) ||
   BRAND_ASSETS.adminPasscode ||
   'Pak#9842@M';
+
+const STATUS_COLORS: Record<OrderStatus, string> = {
+  Pending: 'bg-amber-100 text-amber-800 border-amber-300',
+  Confirmed: 'bg-blue-100 text-blue-800 border-blue-300',
+  Shipped: 'bg-purple-100 text-purple-800 border-purple-300',
+  Delivered: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  Cancelled: 'bg-rose-100 text-rose-800 border-rose-300',
+};
 
 interface AdminPanelProps {
   orders: Order[];
@@ -66,6 +81,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Active Admin View: 'orders' | 'inventory' | 'analytics'
   const [activeTab, setActiveTab] = useState<'orders' | 'inventory'>('orders');
+
+  // Customer Detailed Single Page View State
+  const [selectedCustomerOrder, setSelectedCustomerOrder] = useState<Order | null>(null);
+  const [copiedCustomerSlip, setCopiedCustomerSlip] = useState(false);
 
   // Filters
   const [searchOrder, setSearchOrder] = useState('');
@@ -237,6 +256,95 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Download complete customer shipping and order dispatch file
+  const handleDownloadCustomerData = (order: Order) => {
+    const formattedDate = new Date(order.createdAt).toLocaleString('en-PK', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const itemsSummary = order.items
+      .map((item, idx) => 
+        `Item ${idx + 1}: ${item.productName}\n` +
+        `  Quantity: ${item.quantity}\n` +
+        `  Unit Price: Rs. ${item.price.toLocaleString()} PKR\n` +
+        `  Subtotal: Rs. ${(item.price * item.quantity).toLocaleString()} PKR`
+      )
+      .join('\n\n');
+
+    const totalUnits = order.items.reduce((acc, i) => acc + i.quantity, 0);
+
+    const fileContent = `================================================================================
+                         MW COSMETICS PAKISTAN
+                 COURIER DISPATCH & SHIPPING ORDER FILE
+================================================================================
+ORDER NUMBER:          #${order.orderNumber}
+INTERNAL SYSTEM ID:    ${order.id}
+ORDER DATE & TIME:     ${formattedDate}
+PAYMENT METHOD:        ${order.paymentMethod}
+CURRENT STATUS:        ${order.status}
+COD AMOUNT TO COLLECT: Rs. ${order.totalAmount.toLocaleString()} PKR
+SHIPPING CHARGE:       FREE NATIONWIDE DELIVERY (Rs. 0)
+
+================================================================================
+1. CUSTOMER & SHIPPING DESTINATION DETAILS
+================================================================================
+Customer Full Name:    ${order.shippingDetails.fullName}
+Primary Phone (PK):    ${order.shippingDetails.phone}
+Alternate Phone:       ${order.shippingDetails.alternatePhone || 'N/A'}
+Email Address:         ${order.shippingDetails.email || 'N/A'}
+
+Destination City:      ${order.shippingDetails.city}, Pakistan
+Complete Home Address: ${order.shippingDetails.address}
+Nearby Landmark:       ${order.shippingDetails.landmark || 'N/A'}
+Delivery Instructions: ${order.shippingDetails.notes || 'Handle with Care. Cash on Delivery.'}
+
+================================================================================
+2. ORDERED ITEMS BREAKDOWN
+================================================================================
+${itemsSummary}
+
+--------------------------------------------------------------------------------
+Total Item Units:      ${totalUnits} Units
+Total COD to Collect:  Rs. ${order.totalAmount.toLocaleString()} PKR
+
+================================================================================
+3. COURIER BOOKING QUICK-COPY (FOR LEOPARDS / TCS / TRAX / POSTEX / CALLCOURIER)
+================================================================================
+Consignee Name:        ${order.shippingDetails.fullName}
+Consignee Contact:     ${order.shippingDetails.phone}
+Destination City:      ${order.shippingDetails.city}
+Shipping Address:      ${order.shippingDetails.address} (Landmark: ${order.shippingDetails.landmark})
+Amount to Collect COD: Rs. ${order.totalAmount}
+Parcel Description:    Cosmetics & Skincare Formulations (${totalUnits} items)
+
+================================================================================
+4. SHIPPER & STORE VERIFICATION
+================================================================================
+Store / Brand:         MW Cosmetics Pakistan
+Customer Care WhatsApp:03288608585 (+92 328 8608585)
+Store Website:         https://www.mwcosmetics.store
+Authorized Domains:    mwcosmetics.store, www.mwcosmetics.store
+================================================================================
+File Generated on:     ${new Date().toISOString()}
+`;
+
+    const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const cleanCustomerName = order.shippingDetails.fullName.replace(/[^a-zA-Z0-9]/g, '_');
+    link.href = url;
+    link.download = `MW_Dispatch_Order_${order.orderNumber}_${cleanCustomerName}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Filtered Orders
@@ -449,7 +557,357 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* KPI Dashboard Cards */}
+        {selectedCustomerOrder ? (
+          /* SINGLE DETAILED CUSTOMER PAGE VIEW WITH DOWNLOAD BUTTON */
+          <div className="space-y-6 animate-in fade-in duration-200">
+            {/* Top Navigation & Action Bar */}
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#F2D6D0] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustomerOrder(null)}
+                  className="py-2 px-3.5 rounded-xl bg-[#FFF2F0] hover:bg-[#FFE5E0] text-[#8B263E] border border-[#F2D6D0] text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back to Orders List</span>
+                </button>
+
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="font-serif-luxury text-lg sm:text-2xl font-bold text-[#2D1B1E]">
+                      Customer File: #{selectedCustomerOrder.orderNumber}
+                    </h2>
+                    <span className={`text-xs font-bold py-0.5 px-2.5 rounded-full border ${STATUS_COLORS[selectedCustomerOrder.status]}`}>
+                      {selectedCustomerOrder.status}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#8C646B] mt-0.5">
+                    Order received: {new Date(selectedCustomerOrder.createdAt).toLocaleDateString('en-PK', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons: DOWNLOAD BUTTON & Print & Status Dropdown */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* THE DOWNLOAD BUTTON */}
+                <button
+                  type="button"
+                  onClick={() => handleDownloadCustomerData(selectedCustomerOrder)}
+                  className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#8B263E] to-[#68192C] hover:from-[#A02C48] hover:to-[#7A1E34] text-white text-xs font-bold flex items-center gap-2 shadow-md cursor-pointer transition-all border border-[#D4AF37]/50 active:scale-98"
+                  title="Download customer's full shipping and order data as file"
+                >
+                  <Download className="w-4 h-4 text-[#FFF3B0]" />
+                  <span>Download Shipping Data File</span>
+                </button>
+
+                {/* Print Dispatch Slip */}
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="py-2.5 px-3 rounded-xl bg-white hover:bg-gray-50 text-[#3B1C22] border border-[#F2D6D0] text-xs font-semibold flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                  title="Print dispatch slip"
+                >
+                  <Printer className="w-4 h-4 text-[#8B263E]" />
+                  <span className="hidden sm:inline">Print Slip</span>
+                </button>
+
+                {/* Update Status Dropdown */}
+                <select
+                  value={selectedCustomerOrder.status}
+                  onChange={(e) => {
+                    const next = e.target.value as OrderStatus;
+                    handleStatusChange(selectedCustomerOrder.id, next);
+                    setSelectedCustomerOrder({
+                      ...selectedCustomerOrder,
+                      status: next
+                    });
+                  }}
+                  className={`text-xs font-bold py-2 px-3 rounded-xl border cursor-pointer focus:outline-hidden ${STATUS_COLORS[selectedCustomerOrder.status]}`}
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="Confirmed">Confirmed</option>
+                  <option value="Shipped">Shipped</option>
+                  <option value="Delivered">Delivered</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Customer Details & Shipping Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Card 1: Customer Profile & Contact */}
+              <div className="bg-white rounded-2xl border border-[#F2D6D0] p-5 shadow-xs space-y-4">
+                <div className="flex items-center gap-2 pb-3 border-b border-[#F2D6D0]">
+                  <User className="w-4 h-4 text-[#8B263E]" />
+                  <h3 className="font-serif-luxury font-bold text-base text-[#2D1B1E]">
+                    Customer Information
+                  </h3>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#8C646B] block">
+                      Customer Full Name
+                    </span>
+                    <p className="font-bold text-[#2D1B1E] text-base mt-0.5">
+                      {selectedCustomerOrder.shippingDetails.fullName}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#8C646B] block">
+                      Primary Mobile Number (Pakistan)
+                    </span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="font-mono font-bold text-sm text-[#8B263E]">
+                        🇵🇰 {selectedCustomerOrder.shippingDetails.phone}
+                      </span>
+                      <a
+                        href={`tel:${selectedCustomerOrder.shippingDetails.phone}`}
+                        className="p-1.5 bg-[#FFF2F0] hover:bg-[#FFE5E0] text-[#8B263E] rounded-lg border border-[#F2D6D0] text-[10px] font-bold flex items-center gap-1"
+                        title="Call Customer"
+                      >
+                        <Phone className="w-3 h-3" />
+                        <span>Call</span>
+                      </a>
+                      <a
+                        href={`https://wa.me/${selectedCustomerOrder.shippingDetails.phone.replace(/[^0-9]/g, '').replace(/^0/, '92')}?text=Assalam-o-Alaikum%20${encodeURIComponent(selectedCustomerOrder.shippingDetails.fullName)}%2C%20this%20is%20MW%20Cosmetics%20Pakistan%20regarding%20your%20Order%20%23${selectedCustomerOrder.orderNumber}.`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 bg-[#E8F5E9] hover:bg-[#C8E6C9] text-[#2E7D32] rounded-lg border border-[#A5D6A7] text-[10px] font-bold flex items-center gap-1"
+                        title="Chat on WhatsApp"
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        <span>WhatsApp</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  {selectedCustomerOrder.shippingDetails.alternatePhone && (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-[#8C646B] block">
+                        Alternate / Backup Phone
+                      </span>
+                      <p className="font-mono text-[#2D1B1E] mt-0.5">
+                        {selectedCustomerOrder.shippingDetails.alternatePhone}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedCustomerOrder.shippingDetails.email && (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-[#8C646B] block">
+                        Email Address
+                      </span>
+                      <p className="text-[#2D1B1E] mt-0.5">
+                        {selectedCustomerOrder.shippingDetails.email}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t border-[#F2D6D0]">
+                    <span className="text-[10px] uppercase font-bold text-[#8C646B] block">
+                      Payment Type
+                    </span>
+                    <span className="inline-block mt-1 bg-[#E8F5E9] text-[#2E7D32] border border-[#A5D6A7] px-2.5 py-1 rounded-lg font-bold text-xs">
+                      💵 Cash on Delivery (COD)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Complete Shipping Destination Address */}
+              <div className="bg-white rounded-2xl border border-[#F2D6D0] p-5 shadow-xs space-y-4">
+                <div className="flex items-center gap-2 pb-3 border-b border-[#F2D6D0]">
+                  <MapPin className="w-4 h-4 text-[#8B263E]" />
+                  <h3 className="font-serif-luxury font-bold text-base text-[#2D1B1E]">
+                    Delivery Destination
+                  </h3>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#8C646B] block">
+                      Destination City
+                    </span>
+                    <p className="font-bold text-sm text-[#2D1B1E] mt-0.5 bg-[#FFF8F7] p-2.5 rounded-xl border border-[#F2D6D0]">
+                      📍 {selectedCustomerOrder.shippingDetails.city}, Pakistan
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#8C646B] block">
+                      Full House / Street / Area Address
+                    </span>
+                    <p className="text-[#3B1C22] mt-1 leading-relaxed bg-[#FFF8F7] p-2.5 rounded-xl border border-[#F2D6D0] font-medium">
+                      {selectedCustomerOrder.shippingDetails.address}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#8C646B] block">
+                      Nearby Landmark / Famous Place
+                    </span>
+                    <p className="text-[#8B263E] mt-1 font-semibold bg-[#FFF2F0] p-2.5 rounded-xl border border-[#F2D6D0]">
+                      🏛️ {selectedCustomerOrder.shippingDetails.landmark || 'None specified'}
+                    </p>
+                  </div>
+
+                  {selectedCustomerOrder.shippingDetails.notes && (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-[#8C646B] block">
+                        Special Courier / Rider Instructions
+                      </span>
+                      <p className="text-gray-700 italic mt-1 bg-amber-50 p-2 rounded-xl border border-amber-200">
+                        "{selectedCustomerOrder.shippingDetails.notes}"
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Card 3: Dispatch Slip & Processing */}
+              <div className="bg-white rounded-2xl border border-[#F2D6D0] p-5 shadow-xs space-y-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between pb-3 border-b border-[#F2D6D0]">
+                    <div className="flex items-center gap-2">
+                      <Truck className="w-4 h-4 text-[#D4AF37]" />
+                      <h3 className="font-serif-luxury font-bold text-base text-[#2D1B1E]">
+                        Dispatch & Courier Processing
+                      </h3>
+                    </div>
+                    <span className="text-[10px] font-bold text-[#8B263E] bg-[#FFF2F0] px-2 py-0.5 rounded-full border border-[#D4AF37]/30">
+                      Rider Ready
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-[#7A585F] mt-3">
+                    Fast booking format for Trax, Leopards, TCS, Call Courier, or PostEx:
+                  </p>
+
+                  <div className="mt-2.5 bg-[#FFF9F8] p-3 rounded-xl border border-[#F2D6D0] text-[11px] font-mono space-y-1 text-[#2D1B1E]">
+                    <p><strong>Name:</strong> {selectedCustomerOrder.shippingDetails.fullName}</p>
+                    <p><strong>Phone:</strong> {selectedCustomerOrder.shippingDetails.phone}</p>
+                    <p><strong>City:</strong> {selectedCustomerOrder.shippingDetails.city}</p>
+                    <p className="truncate"><strong>Address:</strong> {selectedCustomerOrder.shippingDetails.address}</p>
+                    <p><strong>Landmark:</strong> {selectedCustomerOrder.shippingDetails.landmark}</p>
+                    <p className="text-[#8B263E] font-bold"><strong>COD Amount:</strong> Rs. {selectedCustomerOrder.totalAmount}</p>
+                  </div>
+
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const bookingSlip = `Consignee: ${selectedCustomerOrder.shippingDetails.fullName}\nPhone: ${selectedCustomerOrder.shippingDetails.phone}\nCity: ${selectedCustomerOrder.shippingDetails.city}\nAddress: ${selectedCustomerOrder.shippingDetails.address}\nLandmark: ${selectedCustomerOrder.shippingDetails.landmark}\nCOD Amount: Rs. ${selectedCustomerOrder.totalAmount}\nItems: ${selectedCustomerOrder.items.map(i => `${i.productName} (x${i.quantity})`).join(', ')}`;
+                        navigator.clipboard.writeText(bookingSlip);
+                        setCopiedCustomerSlip(true);
+                        setTimeout(() => setCopiedCustomerSlip(false), 2000);
+                      }}
+                      className="w-full py-2 px-3 bg-[#FFF2F0] hover:bg-[#FFE5E0] text-[#8B263E] border border-[#F2D6D0] rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      {copiedCustomerSlip ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedCustomerSlip ? 'Copied to Clipboard!' : 'Copy Courier Booking Text'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-[#F2D6D0]">
+                  {/* Download Button on Processing Card */}
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadCustomerData(selectedCustomerOrder)}
+                    className="w-full py-2.5 px-4 rounded-xl bg-[#8B263E] hover:bg-[#A02C48] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-[#FFF3B0]" />
+                    <span>Download Shipping & Order File</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Order Items Table & Parcel Breakdown */}
+            <div className="bg-white rounded-2xl border border-[#F2D6D0] p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-[#F2D6D0]">
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-[#8B263E]" />
+                  <h3 className="font-serif-luxury font-bold text-base text-[#2D1B1E]">
+                    Parcel Items & Product Breakdown
+                  </h3>
+                </div>
+                <span className="text-xs font-bold text-[#8B263E]">
+                  {selectedCustomerOrder.items.reduce((acc, i) => acc + i.quantity, 0)} Total Units
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-[#FFF8F7] text-[#4A2E33] border-b border-[#F2D6D0] font-bold text-[11px] uppercase tracking-wider">
+                      <th className="py-2.5 px-3">Product Name</th>
+                      <th className="py-2.5 px-3">Unit Price</th>
+                      <th className="py-2.5 px-3">Quantity</th>
+                      <th className="py-2.5 px-3 text-right">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F2D6D0]">
+                    {selectedCustomerOrder.items.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-[#FFFDFD]">
+                        <td className="py-3 px-3 flex items-center gap-3">
+                          <img
+                            src={item.image}
+                            alt={item.productName}
+                            className="w-10 h-10 rounded-xl object-cover border border-[#F2D6D0]"
+                          />
+                          <div>
+                            <p className="font-bold text-[#2D1B1E]">{item.productName}</p>
+                            <p className="text-[10px] text-gray-500 font-mono">ID: {item.productId}</p>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 font-medium text-gray-700">
+                          Rs. {item.price.toLocaleString()}
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className="font-bold text-[#8B263E] bg-[#FFF2F0] px-2 py-0.5 rounded-md">
+                            {item.quantity}×
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-right font-bold text-[#2D1B1E]">
+                          Rs. {(item.price * item.quantity).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Total Calculation Strip */}
+              <div className="pt-4 border-t border-[#F2D6D0] flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#FFF9F8] p-4 rounded-xl">
+                <div className="text-xs text-[#7A585F] space-y-0.5">
+                  <p>• Shipping Charges: <strong>FREE Delivery Across Pakistan</strong></p>
+                  <p>• Payment Method: <strong>Cash on Delivery (COD)</strong></p>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-xs text-[#8C646B] block">Total Amount to Collect from Customer:</span>
+                  <span className="font-serif-luxury text-2xl font-extrabold text-[#8B263E]">
+                    Rs. {selectedCustomerOrder.totalAmount.toLocaleString()} PKR
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* ALL ORDERS & INVENTORY VIEW */
+          <>
+            {/* KPI Dashboard Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-white p-4 rounded-2xl border border-[#F2D6D0] shadow-xs">
             <div className="flex items-center justify-between text-xs text-[#8C646B] mb-1">
@@ -614,19 +1072,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </tr>
                     ) : (
                       filteredOrders.map((order) => {
-                        const statusColors: Record<OrderStatus, string> = {
-                          Pending: 'bg-amber-100 text-amber-800 border-amber-300',
-                          Confirmed: 'bg-blue-100 text-blue-800 border-blue-300',
-                          Shipped: 'bg-purple-100 text-purple-800 border-purple-300',
-                          Delivered: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-                          Cancelled: 'bg-rose-100 text-rose-800 border-rose-300',
-                        };
-
                         return (
-                          <tr key={order.id} className="hover:bg-[#FFFDFD] transition-colors">
+                          <tr 
+                            key={order.id} 
+                            onClick={() => setSelectedCustomerOrder(order)}
+                            className="hover:bg-[#FFF5F3] transition-colors cursor-pointer group"
+                            title="Click to view full customer details and download shipping file"
+                          >
                             {/* Order ID & Date */}
                             <td className="py-4 px-4 align-top">
-                              <span className="font-mono font-bold text-sm text-[#8B263E] block">
+                              <span className="font-mono font-bold text-sm text-[#8B263E] group-hover:underline block">
                                 #{order.orderNumber}
                               </span>
                               <span className="text-[11px] text-[#8C646B] block mt-0.5">
@@ -644,11 +1099,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                             {/* Customer */}
                             <td className="py-4 px-4 align-top">
-                              <p className="font-bold text-[#2D1B1E] text-sm">
+                              <p className="font-bold text-[#2D1B1E] text-sm group-hover:text-[#8B263E] transition-colors">
                                 {order.shippingDetails.fullName}
                               </p>
                               <a 
                                 href={`tel:${order.shippingDetails.phone}`} 
+                                onClick={(e) => e.stopPropagation()}
                                 className="text-xs font-semibold text-[#8B263E] hover:underline flex items-center gap-1 mt-0.5"
                               >
                                 🇵🇰 {order.shippingDetails.phone}
@@ -658,6 +1114,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                   Alt: {order.shippingDetails.alternatePhone}
                                 </p>
                               )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedCustomerOrder(order);
+                                }}
+                                className="mt-1.5 text-[10px] font-bold text-[#8B263E] bg-[#FFF2F0] hover:bg-[#FFE5E0] px-2 py-0.5 rounded-md border border-[#F2D6D0] flex items-center gap-1 transition-colors cursor-pointer"
+                                title="View customer file and download dispatch data"
+                              >
+                                <FileText className="w-3 h-3 text-[#D4AF37]" />
+                                <span>View Details & Download</span>
+                              </button>
                             </td>
 
                             {/* Address & Landmark */}
@@ -708,8 +1176,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             <td className="py-4 px-4 align-top">
                               <select
                                 value={order.status}
+                                onClick={(e) => e.stopPropagation()}
                                 onChange={(e) => handleStatusChange(order.id, e.target.value as OrderStatus)}
-                                className={`text-xs font-bold py-1.5 px-2.5 rounded-xl border cursor-pointer focus:outline-hidden ${statusColors[order.status]}`}
+                                className={`text-xs font-bold py-1.5 px-2.5 rounded-xl border cursor-pointer focus:outline-hidden ${STATUS_COLORS[order.status]}`}
                               >
                                 <option value="Pending">Pending</option>
                                 <option value="Shipped">Shipped</option>
@@ -792,7 +1261,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           </div>
         )}
-      </main>
+      </>
+    )}
+  </main>
 
       {/* Edit Product Modal */}
       {editingProduct && (

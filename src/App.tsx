@@ -56,6 +56,36 @@ export default function App() {
     }
   }, [cart]);
 
+  // Open Product Modal and synchronize direct shareable URL in browser
+  const handleOpenProductModal = (product: Product) => {
+    setSelectedProductModal(product);
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('product') !== product.id) {
+        url.searchParams.set('product', product.id);
+        window.history.pushState({ productId: product.id }, '', url.pathname + url.search + url.hash);
+      }
+    } catch {
+      // fallback
+    }
+  };
+
+  const handleCloseProductModal = () => {
+    setSelectedProductModal(null);
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('product') || url.searchParams.has('p') || url.pathname.startsWith('/product/')) {
+        url.searchParams.delete('product');
+        url.searchParams.delete('p');
+        const newSearch = url.searchParams.toString() ? `?${url.searchParams.toString()}` : '';
+        const newPath = url.pathname.startsWith('/product/') ? '/' : url.pathname;
+        window.history.pushState({}, '', newPath + newSearch + url.hash);
+      }
+    } catch {
+      // fallback
+    }
+  };
+
   // Subscribe to real-time Firestore / local storage updates
   useEffect(() => {
     const unsubOrders = subscribeToOrders((latestOrders) => {
@@ -72,11 +102,13 @@ export default function App() {
     };
   }, []);
 
-  // Listen for /admin URL route or hash routes
+  // Listen for /admin URL route, hash routes, and Direct Product Links (?product=... or /product/...)
   useEffect(() => {
     const checkRoute = () => {
       const pathname = window.location.pathname;
       const hash = window.location.hash;
+      const search = window.location.search;
+
       if (
         pathname === '/admin' || 
         pathname === '/admin/' ||
@@ -91,6 +123,33 @@ export default function App() {
       if (hash === '#contact' || hash === '#help') {
         setIsContactOpen(true);
       }
+
+      // Check for Direct Product Link in URL for ads or sharing
+      try {
+        const urlParams = new URLSearchParams(search);
+        let targetProdId = urlParams.get('product') || urlParams.get('p') || urlParams.get('item');
+
+        if (!targetProdId && pathname.startsWith('/product/')) {
+          targetProdId = pathname.replace('/product/', '').replace(/\/$/, '');
+        }
+
+        if (!targetProdId && (hash.startsWith('#product-') || hash.startsWith('#/product/'))) {
+          targetProdId = hash.replace('#product-', '').replace('#/product/', '');
+        }
+
+        if (targetProdId) {
+          const cleanId = decodeURIComponent(targetProdId).trim();
+          const target = products.find(p => p.id === cleanId) || INITIAL_PRODUCTS.find(p => p.id === cleanId);
+          if (target) {
+            setSelectedProductModal(target);
+          }
+        } else if (!targetProdId && !pathname.startsWith('/product/')) {
+          // If browser navigated back away from a product
+          setSelectedProductModal((current) => (current ? null : current));
+        }
+      } catch (err) {
+        console.warn('Error reading route params:', err);
+      }
     };
 
     checkRoute();
@@ -100,7 +159,7 @@ export default function App() {
       window.removeEventListener('hashchange', checkRoute);
       window.removeEventListener('popstate', checkRoute);
     };
-  }, []);
+  }, [products]);
 
   // Cart Calculations
   const cartCount = useMemo(() => {
@@ -219,14 +278,14 @@ export default function App() {
                 window.scrollTo({ top: 500, behavior: 'smooth' });
               }}
               featuredProduct={featuredProduct}
-              onQuickView={(p) => setSelectedProductModal(p)}
+              onQuickView={(p) => handleOpenProductModal(p)}
               onBuyNow={handleBuyNow}
             />
 
             {/* Skincare Routine Showcase */}
             <BrandFeatures
               products={products}
-              onSelectProduct={(p) => setSelectedProductModal(p)}
+              onSelectProduct={(p) => handleOpenProductModal(p)}
               onAddToCart={handleAddToCart}
             />
           </>
@@ -314,7 +373,7 @@ export default function App() {
                   product={product}
                   onAddToCart={handleAddToCart}
                   onBuyNow={handleBuyNow}
-                  onQuickView={(p) => setSelectedProductModal(p)}
+                  onQuickView={(p) => handleOpenProductModal(p)}
                 />
               ))}
             </div>
@@ -378,7 +437,7 @@ export default function App() {
       {/* Modals & Drawers */}
       <ProductModal
         product={selectedProductModal}
-        onClose={() => setSelectedProductModal(null)}
+        onClose={handleCloseProductModal}
         onAddToCart={handleAddToCart}
         onBuyNow={handleBuyNow}
       />
