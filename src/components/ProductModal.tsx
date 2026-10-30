@@ -123,6 +123,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           <div className="bg-[#FFF8F7] p-5 sm:p-6 flex flex-col items-center justify-between relative border-b md:border-b-0 md:border-r border-[#F2D6D0] overflow-y-auto max-h-[85vh]">
             <div className="w-full flex flex-col items-center">
               <div className="relative w-full max-w-[260px] aspect-square rounded-2xl overflow-hidden shadow-md border-2 border-white">
+                <span className="absolute top-2.5 left-2.5 z-10 bg-[#8B263E] text-white text-xs font-extrabold px-2.5 py-1 rounded-full shadow-md border border-[#D4AF37]/60 tracking-wide">
+                  40% OFF
+                </span>
                 <img
                   src={product.image}
                   alt={product.name}
@@ -273,7 +276,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               <p className="text-xs text-[#8C646B] italic mt-0.5">{product.tagline}</p>
 
               {/* Price */}
-              <div className="mt-3 flex items-baseline gap-2">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="text-2xl font-extrabold text-[#2D1B1E]">
                   Rs. {product.price.toLocaleString()}
                 </span>
@@ -282,6 +285,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     Rs. {product.originalPrice.toLocaleString()}
                   </span>
                 )}
+                <span className="text-xs font-extrabold text-white bg-[#8B263E] px-2.5 py-0.5 rounded-full border border-[#D4AF37]/50 shadow-2xs">
+                  40% OFF
+                </span>
                 <span className="text-xs font-semibold text-[#8B263E] bg-[#FFF2F0] px-2 py-0.5 rounded-md ml-auto">
                   Taxes Included
                 </span>

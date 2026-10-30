@@ -122,10 +122,15 @@ export const Hero: React.FC<HeroProps> = ({
             <div className="relative w-full max-w-sm sm:max-w-md aspect-square rounded-3xl p-1 bg-gradient-to-tr from-[#D4AF37] via-[#FFF3B0] to-[#E8CA65] shadow-2xl">
               <div className="w-full h-full bg-white rounded-[22px] overflow-hidden p-5 flex flex-col justify-between relative group">
                 
-                {/* Floating Tag */}
-                <div className="absolute top-6 left-6 z-10 bg-[#2D161A] text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1.5 border border-[#D4AF37]/50">
-                  <Award className="w-3.5 h-3.5 text-[#D4AF37]" />
-                  <span>Editor's Luxury Pick</span>
+                {/* Floating Tag & Discount Badge */}
+                <div className="absolute top-6 left-6 right-6 z-10 flex items-center justify-between gap-2 pointer-events-none">
+                  <div className="bg-[#2D161A] text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1.5 border border-[#D4AF37]/50">
+                    <Award className="w-3.5 h-3.5 text-[#D4AF37]" />
+                    <span>Editor's Luxury Pick</span>
+                  </div>
+                  <span className="bg-[#8B263E] text-white text-xs font-extrabold px-2.5 py-1 rounded-full shadow-md border border-[#D4AF37]/60">
+                    40% OFF
+                  </span>
                 </div>
 
                 <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-[#FFF9F9]">
@@ -149,9 +154,14 @@ export const Hero: React.FC<HeroProps> = ({
                 <div className="pt-3 flex items-center justify-between">
                   <div>
                     <span className="text-xs text-[#8C646B] block">Nationwide COD Price:</span>
-                    <span className="text-xl font-bold font-serif-luxury text-[#2D1B1E]">
-                      Rs. {featuredProduct.price.toLocaleString()}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl font-bold font-serif-luxury text-[#2D1B1E]">
+                        Rs. {featuredProduct.price.toLocaleString()}
+                      </span>
+                      <span className="text-[10px] font-extrabold text-[#8B263E] bg-[#FFF0ED] border border-[#D4AF37]/40 px-2 py-0.5 rounded-full">
+                        40% OFF
+                      </span>
+                    </div>
                   </div>
 
                   <button

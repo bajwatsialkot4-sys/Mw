@@ -37,15 +37,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     <div className="group bg-white rounded-2xl border border-[#F2D6D0] hover:border-[#D4AF37]/70 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden relative">
       {/* Badges Overlay */}
       <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5 items-start">
+        <span className="bg-[#8B263E] text-white text-[11px] sm:text-xs font-extrabold px-2.5 py-1 rounded-full shadow-sm border border-[#D4AF37]/50 tracking-wide">
+          40% OFF
+        </span>
         {product.isBestSeller && (
           <span className="inline-flex items-center gap-1 bg-gradient-to-r from-[#D4AF37] to-[#E8CA65] text-[#2D1B1E] text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full shadow-xs uppercase tracking-wider">
             <Sparkles className="w-3 h-3 text-[#2D1B1E]" />
             Best Seller
-          </span>
-        )}
-        {discountPercent > 0 && (
-          <span className="bg-[#8B263E] text-white text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full shadow-xs">
-            Save {discountPercent}%
           </span>
         )}
       </div>
@@ -102,7 +100,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </p>
 
           {/* Pricing */}
-          <div className="mt-3 flex items-baseline gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <span className="text-lg sm:text-xl font-extrabold text-[#2D1B1E]">
               Rs. {product.price.toLocaleString()}
             </span>
@@ -111,6 +109,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 Rs. {product.originalPrice.toLocaleString()}
               </span>
             )}
+            <span className="text-[10px] font-extrabold text-[#8B263E] bg-[#FFF0ED] border border-[#D4AF37]/40 px-2 py-0.5 rounded-full">
+              40% OFF
+            </span>
             <span className="text-[11px] text-[#2E7D32] font-semibold bg-[#E8F5E9] px-2 py-0.5 rounded-full ml-auto">
               COD Available
             </span>

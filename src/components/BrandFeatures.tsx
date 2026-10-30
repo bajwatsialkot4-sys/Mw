@@ -118,9 +118,14 @@ export const BrandFeatures: React.FC<BrandFeaturesProps> = ({
                 <div className="mt-5 pt-4 border-t border-[#F8E5E1] flex items-center justify-between">
                   {matchedProduct ? (
                     <>
-                      <span className="font-serif-luxury font-bold text-sm text-[#2C181C]">
-                        Rs. {matchedProduct.price.toLocaleString()}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-serif-luxury font-bold text-sm text-[#2C181C]">
+                          Rs. {matchedProduct.price.toLocaleString()}
+                        </span>
+                        <span className="text-[10px] font-extrabold text-white bg-[#8B263E] px-2 py-0.5 rounded-full border border-[#D4AF37]/40">
+                          40% OFF
+                        </span>
+                      </div>
                       <button
                         type="button"
                         onClick={() => onSelectProduct(matchedProduct)}
